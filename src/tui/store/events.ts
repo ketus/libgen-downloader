@@ -76,12 +76,14 @@ export const createEventActionsSlice = (
     store.setIsLoading(true);
     store.setLoaderMessage(Label.GETTING_RESULTS);
 
-    const entries = await store.search(store.searchValue, store.currentPage);
-    // search to cache next page
-    await store.search(store.searchValue, store.currentPage + 1);
-    store.setEntries(entries);
-
-    store.setIsLoading(false);
+    try {
+      const entries = await store.search(store.searchValue, store.currentPage);
+      // search to cache next page
+      await store.search(store.searchValue, store.currentPage + 1);
+      store.setEntries(entries);
+    } finally {
+      store.setIsLoading(false);
+    }
   },
   nextPage: async () => {
     const store = get();

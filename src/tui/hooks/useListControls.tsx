@@ -4,9 +4,10 @@ import { useInput } from "ink";
 export const useListControls = <T,>(
   listItems: T[],
   onReturn?: (item: T, selectedIndex: number) => void,
-  isActive?: boolean
+  isActive?: boolean,
+  startIndex = 0
 ) => {
-  const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
+  const [selectedOptionIndex, setSelectedOptionIndex] = useState(startIndex);
 
   useInput(
     (input, key) => {

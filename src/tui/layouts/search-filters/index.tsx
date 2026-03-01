@@ -91,7 +91,8 @@ export function SearchFilters() {
     }
   };
 
-  const { selectedOptionIndex } = useListControls(ALL_ITEMS, handleSelect);
+  const searchActionIndex = DEFAULT_COLUMNS.length + DEFAULT_OBJECTS.length + DEFAULT_TOPICS.length + 1;
+  const { selectedOptionIndex } = useListControls(ALL_ITEMS, handleSelect, undefined, searchActionIndex);
 
   const renderItem = (item: FilterItem, index: number) => {
     const isActive = index === selectedOptionIndex;

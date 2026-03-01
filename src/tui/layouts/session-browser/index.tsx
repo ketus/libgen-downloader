@@ -3,17 +3,16 @@ import { Box, Text } from "ink";
 import { useBoundStore } from "../../store";
 import OptionList from "../../components/OptionList";
 import { IOption } from "../../components/Option";
-import { LAYOUT_KEY } from "../keys";
 import { findAllSessions, Session } from "../../../api/data/session";
 
 export function SessionBrowser() {
-  const setActiveLayout = useBoundStore((state) => state.setActiveLayout);
   const resumeFromSession = useBoundStore((state) => state.resumeFromSession);
+  const backToSearch = useBoundStore((state) => state.backToSearch);
 
   const sessions = findAllSessions();
 
   if (sessions.length === 0) {
-    setActiveLayout(LAYOUT_KEY.SEARCH_LAYOUT);
+    backToSearch();
     return null;
   }
 
@@ -38,7 +37,7 @@ export function SessionBrowser() {
 
   options["start_fresh"] = {
     label: "Start fresh search",
-    onSelect: () => setActiveLayout(LAYOUT_KEY.SEARCH_LAYOUT),
+    onSelect: () => backToSearch(),
     order: sessions.length,
   };
 
