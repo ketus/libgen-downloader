@@ -9,9 +9,12 @@ import { LAYOUT_KEY } from "../layouts/keys";
 import { IDownloadProgress } from "./download-queue";
 import { getDocument } from "../../api/data/document";
 import { downloadFile } from "../../api/data/download";
+import { getAdapter } from "../../api/adapters";
+import { Adapter } from "../../api/adapters/Adapter";
 import { initDownloadedFile, initFailedFile, appendMD5ToFile, appendFailedEntry } from "../../api/data/file";
 import { loadDownloadedMD5s, recordDownloaded } from "../../api/data/downloadHistory";
 import { saveSession, loadSession, Session, SessionItem } from "../../api/data/session";
+import { REQUEST_TIMEOUT_MS, BULK_DOWNLOAD_CONCURRENCY } from "../../settings";
 import objectHash from "object-hash";
 
 const BASE_DOWNLOAD_DIR = "libgen-downloads";
@@ -22,6 +25,7 @@ export interface IBulkDownloadQueueItem extends IDownloadProgress {
 
 export interface IBulkDownloadQueueState {
   isBulkDownloadComplete: boolean;
+  isResumedSession: boolean;
 
   completedBulkDownloadItemCount: number;
   skippedBulkDownloadItemCount: number;
@@ -40,6 +44,8 @@ export interface IBulkDownloadQueueState {
   onBulkQueueItemComplete: (index: number) => void;
   onBulkQueueItemFail: (index: number) => void;
   onBulkQueueItemSkip: (index: number) => void;
+  onBulkQueueItemUserSkip: (index: number) => void;
+  skipCurrentBulkItem: () => void;
   operateBulkDownloadQueue: () => Promise<void>;
   startBulkDownload: () => Promise<void>;
   startBulkDownloadInCLI: (md5List: string[], folderName: string) => Promise<void>;
@@ -49,6 +55,7 @@ export interface IBulkDownloadQueueState {
 
 export const initialBulkDownloadQueueState = {
   isBulkDownloadComplete: false,
+  isResumedSession: false,
 
   completedBulkDownloadItemCount: 0,
   skippedBulkDownloadItemCount: 0,
@@ -64,6 +71,9 @@ export const createBulkDownloadQueueStateSlice = (
   set: (partial: Partial<TCombinedStore> | ((state: TCombinedStore) => Partial<TCombinedStore>)) => void,
   get: () => TCombinedStore
 ) => {
+  // Tracks AbortControllers for all currently active download items.
+  const activeControllers = new Map<number, AbortController>();
+
   // Persists the current bulk selection to a session file immediately, so the
   // folder and session are visible even if the user exits before starting the download.
   const persistQueueToSession = () => {
@@ -177,6 +187,7 @@ export const createBulkDownloadQueueStateSlice = (
           ...item,
           filename,
           total,
+          progress: 0,
           status: DownloadStatus.DOWNLOADING,
         };
       }),
@@ -264,6 +275,19 @@ export const createBulkDownloadQueueStateSlice = (
     }));
   },
 
+  onBulkQueueItemUserSkip: (index: number) => {
+    set((prev) => ({
+      bulkDownloadQueue: prev.bulkDownloadQueue.map((item, i) => {
+        if (index !== i) return item;
+        return { ...item, status: DownloadStatus.SKIPPED };
+      }),
+    }));
+  },
+
+  skipCurrentBulkItem: () => {
+    activeControllers.forEach((c) => c.abort());
+  },
+
   operateBulkDownloadQueue: async () => {
     const bulkDownloadQueue = get().bulkDownloadQueue;
     const downloadDir = get().downloadDir;
@@ -296,83 +320,122 @@ export const createBulkDownloadQueueStateSlice = (
       }
     };
 
-    for (let i = 0; i < bulkDownloadQueue.length; i++) {
-      const item = bulkDownloadQueue[i];
-
-      // Skip items that were downloaded in a previous session
+    const processItem = async (i: number, item: IBulkDownloadQueueItem) => {
       if (downloadedMD5s.has(item.md5.toLowerCase())) {
         get().onBulkQueueItemSkip(i);
-        continue;
-      }
-
-      const detailPageUrl = get().mirrorAdapter?.getDetailPageURL(item.md5);
-      if (!detailPageUrl) {
-        get().setWarningMessage(`Couldn't get the detail page URL for ${item.md5}`);
-        get().onBulkQueueItemFail(i);
-        appendToFailedFile(item.md5, "Couldn't construct detail page URL");
-        updateSession(item.md5, "failed");
-        continue;
+        return;
       }
 
       get().onBulkQueueItemProcessing(i);
 
-      const detailPageDocument = await attempt(() => getDocument(detailPageUrl));
-      if (!detailPageDocument) {
-        get().setWarningMessage(`Couldn't fetch the detail page for ${item.md5}`);
-        get().onBulkQueueItemFail(i);
-        appendToFailedFile(item.md5, "Couldn't fetch detail page");
-        updateSession(item.md5, "failed");
-        continue;
+      const controller = new AbortController();
+      activeControllers.set(i, controller);
+      const { signal } = controller;
+
+      // Build ordered list of adapters: primary mirror first, then the remaining mirrors as fallbacks.
+      const primaryAdapter = get().mirrorAdapter;
+      const mirrors = get().mirrors;
+      const adapters: Adapter[] = primaryAdapter ? [primaryAdapter] : [];
+      for (const m of mirrors) {
+        if (primaryAdapter && m.src === primaryAdapter.baseURL) continue;
+        try { adapters.push(getAdapter(m.src, m.type)); } catch { /* skip unknown type */ }
       }
 
-      const downloadUrl = get().mirrorAdapter?.getMainDownloadURLFromDocument(detailPageDocument);
-      if (!downloadUrl) {
-        get().setWarningMessage(`Couldn't find the download url for ${item.md5}`);
-        get().onBulkQueueItemFail(i);
-        appendToFailedFile(item.md5, "Couldn't find download URL in detail page");
-        updateSession(item.md5, "failed");
-        continue;
-      }
+      let lastError = "Download failed";
+      let succeeded = false;
 
-      const downloadStream = await attempt(() => fetch(downloadUrl));
-      if (!downloadStream) {
-        get().setWarningMessage(`Couldn't fetch the download stream for ${item.md5}`);
-        get().onBulkQueueItemFail(i);
-        appendToFailedFile(item.md5, "Couldn't fetch download stream");
-        updateSession(item.md5, "failed");
-        continue;
-      }
-
-      let downloadedFilename = "";
       try {
-        await downloadFile({
-          downloadStream,
-          downloadDir,
-          onStart: (filename, total) => {
-            downloadedFilename = filename;
-            get().onBulkQueueItemStart(i, filename, total);
-          },
-          onData: (filename, chunk, total) => {
-            get().onBulkQueueItemData(i, filename, chunk, total);
-          },
-        });
+        for (const adapter of adapters) {
+          if (signal.aborted) break;
 
-        get().onBulkQueueItemComplete(i);
-        updateSession(item.md5, "downloaded", downloadedFilename);
-        try {
-          appendMD5ToFile(downloadedFilePath, item.md5);
-        } catch {
-          // non-fatal
+          // Track whether onStart was called so we know if a failure happened mid-stream.
+          // Mid-stream failures don't retry other mirrors to avoid leaving partial corrupt files.
+          let downloadStarted = false;
+          try {
+            const detailPageUrl = adapter.getDetailPageURL(item.md5);
+            const detailPageDocument = await attempt(() => getDocument(detailPageUrl, signal));
+            if (!detailPageDocument) {
+              lastError = "Couldn't fetch detail page";
+              continue;
+            }
+
+            const downloadUrl = adapter.getMainDownloadURLFromDocument(detailPageDocument);
+            if (!downloadUrl) {
+              lastError = "Couldn't find download URL in detail page";
+              continue;
+            }
+
+            const downloadSignal = AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
+            const downloadStream = await attempt(() => fetch(downloadUrl, { signal: downloadSignal }));
+            if (!downloadStream) {
+              lastError = "Couldn't fetch download stream";
+              continue;
+            }
+
+            let downloadedFilename = "";
+            await downloadFile({
+              downloadStream,
+              downloadDir,
+              signal,
+              onStart: (filename, total) => {
+                downloadStarted = true;
+                downloadedFilename = filename;
+                get().onBulkQueueItemStart(i, filename, total);
+              },
+              onData: (filename, chunk, total) => {
+                get().onBulkQueueItemData(i, filename, chunk, total);
+              },
+            });
+
+            get().onBulkQueueItemComplete(i);
+            updateSession(item.md5, "downloaded", downloadedFilename);
+            try { appendMD5ToFile(downloadedFilePath, item.md5); } catch { /* non-fatal */ }
+            succeeded = true;
+            break;
+          } catch (err) {
+            const name = (err as Error)?.name;
+            if (name === "AbortError") throw err; // propagate to outer catch for user-skip handling
+            lastError = err instanceof Error ? err.message : "Download failed";
+            if (downloadStarted && name !== "TimeoutError") break; // non-timeout mid-stream failure: don't try other mirrors
+            // pre-stream failure or timeout: try next mirror (timeout may be mirror-specific)
+          }
+        }
+
+        if (!succeeded) {
+          get().onBulkQueueItemFail(i);
+          appendToFailedFile(item.md5, lastError);
+          updateSession(item.md5, "failed");
         }
       } catch (err) {
-        const reason = err instanceof Error ? err.message : "Download failed";
-        get().onBulkQueueItemFail(i);
-        appendToFailedFile(item.md5, reason);
-        updateSession(item.md5, "failed");
+        // Only AbortError reaches here (user pressed S to skip)
+        get().onBulkQueueItemUserSkip(i);
+      } finally {
+        activeControllers.delete(i);
       }
-    }
+    };
+
+    // Worker pool: BULK_DOWNLOAD_CONCURRENCY workers pull from a shared index counter.
+    // Safe in single-threaded JS since the index read+increment is synchronous.
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < bulkDownloadQueue.length) {
+        const i = nextIndex++;
+        await processItem(i, bulkDownloadQueue[i]);
+      }
+    };
+
+    await Promise.all(Array.from({ length: BULK_DOWNLOAD_CONCURRENCY }, worker));
 
     set({ isBulkDownloadComplete: true });
+
+    // For fresh downloads (startBulkDownload): auto-redirect to session browser.
+    // For resumed sessions (resumeFromSession): stay on the bulk download screen and
+    // show after-complete options — avoids an infinite loop where every resume
+    // triggers another redirect back to the session browser.
+    if (!get().CLIMode && !get().isResumedSession) {
+      get().resetBulkDownloadQueue();
+      get().setActiveLayout(LAYOUT_KEY.SESSION_BROWSER_LAYOUT);
+    }
   },
 
   startBulkDownload: async () => {
@@ -393,6 +456,7 @@ export const createBulkDownloadQueueStateSlice = (
       failedBulkDownloadItemCount: 0,
       downloadDir,
       isBulkDownloadComplete: false,
+      isResumedSession: false,
     });
     get().setActiveLayout(LAYOUT_KEY.BULK_DOWNLOAD_LAYOUT);
 
@@ -501,6 +565,7 @@ export const createBulkDownloadQueueStateSlice = (
       failedBulkDownloadItemCount: 0,
       downloadDir,
       isBulkDownloadComplete: false,
+      isResumedSession: true,
       bulkDownloadQueue: session.items.map((item) => ({
         md5: item.md5,
         status: DownloadStatus.IN_QUEUE,

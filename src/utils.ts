@@ -33,6 +33,7 @@ export async function attempt<T>(
 
       return result;
     } catch (e: unknown) {
+      if ((e as Error)?.name === "AbortError" || (e as Error)?.name === "TimeoutError") throw e;
       if (onFail) {
         onFail(`Request failed, trying again ${i + 1}/${FAIL_REQ_ATTEMPT_COUNT}`);
       }

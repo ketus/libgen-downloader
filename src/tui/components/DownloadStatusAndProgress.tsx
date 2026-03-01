@@ -14,7 +14,7 @@ export function DownloadStatusAndProgress({ downloadProgressData }: Props) {
     downloadProgressData.total
   );
 
-  const noProgressStatuses = [DownloadStatus.DOWNLOADED, DownloadStatus.ALREADY_DOWNLOADED, DownloadStatus.FAILED];
+  const noProgressStatuses = [DownloadStatus.DOWNLOADED, DownloadStatus.ALREADY_DOWNLOADED, DownloadStatus.SKIPPED, DownloadStatus.FAILED];
 
   return (
     <Text>

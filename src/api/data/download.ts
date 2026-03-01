@@ -1,10 +1,12 @@
 import contentDisposition from "content-disposition";
 import fs from "fs";
 import { DownloadResult } from "../models/DownloadResult";
+import { DOWNLOAD_CHUNK_TIMEOUT_MS } from "../../settings";
 
 interface downloadFileArgs {
   downloadStream: Response;
   downloadDir: string;
+  signal?: AbortSignal;
   onStart: (filename: string, total: number) => void;
   onData: (filename: string, chunk: Buffer, total: number) => void;
 }
@@ -12,6 +14,7 @@ interface downloadFileArgs {
 export const downloadFile = async ({
   downloadStream,
   downloadDir,
+  signal,
   onStart,
   onData,
 }: downloadFileArgs): Promise<DownloadResult> => {
@@ -43,9 +46,24 @@ export const downloadFile = async ({
   const file = fs.createWriteStream(path);
   const reader = downloadStream.body.getReader();
 
+  const readChunk = () =>
+    new Promise<Awaited<ReturnType<typeof reader.read>>>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new DOMException("Download stalled", "TimeoutError")),
+        DOWNLOAD_CHUNK_TIMEOUT_MS
+      );
+      reader.read().then(
+        (result) => { clearTimeout(timeout); resolve(result); },
+        (err)    => { clearTimeout(timeout); reject(err); }
+      );
+    });
+
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      if (signal?.aborted) {
+        throw new DOMException("Download aborted", "AbortError");
+      }
+      const { done, value } = await readChunk();
       if (done) break;
 
       const chunk = Buffer.from(value);
@@ -69,7 +87,9 @@ export const downloadFile = async ({
     return downloadResult;
   } catch (error) {
     file.destroy();
-    reader.cancel();
+    reader.cancel().catch(() => {});
+    const name = (error as Error)?.name;
+    if (name === "AbortError" || name === "TimeoutError") throw error;
     throw new Error(`(${filename}) Error occurred while downloading file`);
   }
 };

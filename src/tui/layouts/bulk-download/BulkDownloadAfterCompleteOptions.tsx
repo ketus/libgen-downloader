@@ -1,31 +1,30 @@
 import React from "react";
-import { BulkDownloadAfterCompleteOption } from "../../../options";
 import { IOption } from "../../components/Option";
 import { useBoundStore } from "../../store";
-import Label from "../../../labels";
 import { LAYOUT_KEY } from "../keys";
 import OptionList from "../../components/OptionList";
 
 export function BulkDownloadAfterCompleteOptions() {
   const setActiveLayout = useBoundStore((state) => state.setActiveLayout);
-  const backToSearch = useBoundStore((state) => state.backToSearch);
   const resetBulkDownloadQueue = useBoundStore((state) => state.resetBulkDownloadQueue);
+  const backToSearch = useBoundStore((state) => state.backToSearch);
 
   const options: Record<string, IOption> = {
-    [BulkDownloadAfterCompleteOption.TURN_BACK_TO_THE_LIST]: {
-      label: Label.TURN_BACK_TO_THE_LIST,
+    view_sessions: {
+      label: "View download sessions",
       onSelect: () => {
         resetBulkDownloadQueue();
-        setActiveLayout(LAYOUT_KEY.RESULT_LIST_LAYOUT);
+        setActiveLayout(LAYOUT_KEY.SESSION_BROWSER_LAYOUT);
       },
+      order: 0,
     },
-
-    [BulkDownloadAfterCompleteOption.BACK_TO_SEARCH]: {
-      label: Label.SEARCH,
+    back_to_search: {
+      label: "New search",
       onSelect: () => {
         resetBulkDownloadQueue();
         backToSearch();
       },
+      order: 1,
     },
   };
 

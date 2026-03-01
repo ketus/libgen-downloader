@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import { useBoundStore } from "../../store";
 import { DownloadStatusAndProgress } from "../../components/DownloadStatusAndProgress";
 import { BulkDownloadAfterCompleteOptions } from "./BulkDownloadAfterCompleteOptions";
@@ -17,7 +17,14 @@ export function BulkDownload() {
   const failedBulkDownloadItemCount = useBoundStore((state) => state.failedBulkDownloadItemCount);
   const downloadDir = useBoundStore((state) => state.downloadDir);
   const CLIMode = useBoundStore((state) => state.CLIMode);
+  const skipCurrentBulkItem = useBoundStore((state) => state.skipCurrentBulkItem);
   const totalItemCount = bulkDownloadQueue.length;
+
+  useInput((input) => {
+    if (input.toLowerCase() === "s") {
+      skipCurrentBulkItem();
+    }
+  });
 
   const failedFilePath = downloadDir ? path.join(downloadDir, "failed.jsonl") : "";
 
@@ -62,6 +69,10 @@ export function BulkDownload() {
             )}
           </Text>
         ))}
+
+        {!CLIMode && !isBulkDownloadComplete && (
+          <Text color="gray">Press S to skip active items</Text>
+        )}
 
         {!CLIMode && isBulkDownloadComplete && <BulkDownloadAfterCompleteOptions />}
       </Box>

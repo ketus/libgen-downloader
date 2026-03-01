@@ -8,4 +8,8 @@ export const CONFIGURATION_URL =
 export const FAIL_REQ_ATTEMPT_COUNT = 5;
 export const FAIL_REQ_ATTEMPT_DELAY_MS = 2000;
 
+export const REQUEST_TIMEOUT_MS = 30_000;
+export const DOWNLOAD_CHUNK_TIMEOUT_MS = 30_000;
+export const BULK_DOWNLOAD_CONCURRENCY = 3;
+
 export const SEARCH_PAGE_SIZE = 25;
