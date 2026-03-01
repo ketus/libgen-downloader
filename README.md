@@ -42,33 +42,46 @@ chmod +x ./libgen-downloader-linux-*
 ## Features
 
 - Interactive user interface.
-- Non app blocking direct downloading.
-- Bulk downloading.
-- Alternative download options.
-- Command line parameters;
+- Non-blocking direct downloading with live progress indicators.
+- **Search filter screen**: after entering a search phrase, choose which fields (Title, Author, Series, Year, Publisher, ISBN), objects (Files, Editions, Series, Authors, Publishers, Works), and topics (Libgen, Comics, Fiction, Scientific Articles, Magazines, Fiction RUS, Standards) to include — all enabled by default, individually togglable.
+- **Per-search download folders**: each search phrase gets its own subfolder inside `libgen-downloads/`, keeping files and session data organized by topic.
+- **Session browser**: on launch, lists all previous download sessions with completion status so you can resume any interrupted bulk download.
+- Bulk downloading with persistent session tracking (session survives exiting before download completes).
+- Command line parameters:
   ```
   Usage
   	$ libgen-downloader <input>
 
   Options
-  	-s, --search <query>      search for a book
-  	-b, --bulk <MD5LIST.txt>  start the app in bulk downloading mode
-  	-u, --url <MD5>           get the download URL
-  	-d, --download <MD5>      download the file
-  	-h, --help                display help
+  	-s, --search <query>       search for a book
+  	-b, --bulk <MD5LIST.txt>   start the app in bulk downloading mode
+  	-n, --name <folder>        folder name for bulk/download modes (required with -b and -d)
+  	-u, --url <MD5>            get the download URL
+  	-d, --download <MD5>       download the file
+  	-h, --help                 display help
 
   Examples
-  	$ libgen-downloader    (start the app in interactive mode witout flags)
+  	$ libgen-downloader    (start the app in interactive mode without flags)
   	$ libgen-downloader -s "The Art of War"
-  	$ libgen-downloader -b ./MD5_LIST_1695686580524.txt
+  	$ libgen-downloader -b ./my_list.txt -n "stoicism"
   	$ libgen-downloader -u 1234567890abcdef1234567890abcdef
-  	$ libgen-downloader -d 1234567890abcdef1234567890abcdef
+  	$ libgen-downloader -d 1234567890abcdef1234567890abcdef -n "stoicism"
 
   ```
 
 
 
 ## Changelogs
+
+v3.2.0
+
+- Added **search filter screen**: after entering a search phrase, a filter screen appears letting you enable/disable which fields (Title, Author, etc.), objects (Files, Editions, etc.), and topics (Libgen, Comics, Fiction, etc.) are included in the search. All filters are on by default with a "Toggle all" shortcut.
+- Added **per-search download folders**: each search now gets its own named subfolder inside `libgen-downloads/` (e.g., `libgen-downloads/machine_learning/`), keeping downloaded files and session data organized by topic.
+- Added **session browser**: on launch, all previous download sessions are listed with their date, item counts, and completion status, so you can resume any interrupted bulk download.
+- Added `--name` / `-n` CLI flag, required when using `--bulk` or `--download` to specify the target folder name.
+- Bulk download session and tracking files are created as soon as items are added to the queue (not just when the download starts), so sessions are always resumable even if you exit before downloading.
+
+---
 
 v3.0.0
 

@@ -19,7 +19,7 @@ export function BulkDownload() {
   const CLIMode = useBoundStore((state) => state.CLIMode);
   const totalItemCount = bulkDownloadQueue.length;
 
-  const failedFilePath = downloadDir ? path.join(downloadDir, "failed.txt") : "";
+  const failedFilePath = downloadDir ? path.join(downloadDir, "failed.jsonl") : "";
 
   return (
     <Box flexDirection="column">

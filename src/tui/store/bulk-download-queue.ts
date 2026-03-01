@@ -9,7 +9,7 @@ import { LAYOUT_KEY } from "../layouts/keys";
 import { IDownloadProgress } from "./download-queue";
 import { getDocument } from "../../api/data/document";
 import { downloadFile } from "../../api/data/download";
-import { initDownloadedFile, initFailedFile, appendMD5ToFile } from "../../api/data/file";
+import { initDownloadedFile, initFailedFile, appendMD5ToFile, appendFailedEntry } from "../../api/data/file";
 import { loadDownloadedMD5s, recordDownloaded } from "../../api/data/downloadHistory";
 import { saveSession, loadSession, Session, SessionItem } from "../../api/data/session";
 import objectHash from "object-hash";
@@ -269,7 +269,7 @@ export const createBulkDownloadQueueStateSlice = (
     const downloadDir = get().downloadDir;
 
     const downloadedFilePath = path.join(downloadDir, "downloaded.txt");
-    const failedFilePath = path.join(downloadDir, "failed.txt");
+    const failedFilePath = path.join(downloadDir, "failed.jsonl");
 
     // Load session so we can update it incrementally during the run
     const session = loadSession(downloadDir);
@@ -288,9 +288,9 @@ export const createBulkDownloadQueueStateSlice = (
       }
     };
 
-    const appendToFailedFile = (md5: string) => {
+    const appendToFailedFile = (md5: string, reason: string) => {
       try {
-        appendMD5ToFile(failedFilePath, md5);
+        appendFailedEntry(failedFilePath, md5, reason);
       } catch {
         // non-fatal
       }
@@ -309,7 +309,7 @@ export const createBulkDownloadQueueStateSlice = (
       if (!detailPageUrl) {
         get().setWarningMessage(`Couldn't get the detail page URL for ${item.md5}`);
         get().onBulkQueueItemFail(i);
-        appendToFailedFile(item.md5);
+        appendToFailedFile(item.md5, "Couldn't construct detail page URL");
         updateSession(item.md5, "failed");
         continue;
       }
@@ -320,7 +320,7 @@ export const createBulkDownloadQueueStateSlice = (
       if (!detailPageDocument) {
         get().setWarningMessage(`Couldn't fetch the detail page for ${item.md5}`);
         get().onBulkQueueItemFail(i);
-        appendToFailedFile(item.md5);
+        appendToFailedFile(item.md5, "Couldn't fetch detail page");
         updateSession(item.md5, "failed");
         continue;
       }
@@ -329,7 +329,7 @@ export const createBulkDownloadQueueStateSlice = (
       if (!downloadUrl) {
         get().setWarningMessage(`Couldn't find the download url for ${item.md5}`);
         get().onBulkQueueItemFail(i);
-        appendToFailedFile(item.md5);
+        appendToFailedFile(item.md5, "Couldn't find download URL in detail page");
         updateSession(item.md5, "failed");
         continue;
       }
@@ -338,7 +338,7 @@ export const createBulkDownloadQueueStateSlice = (
       if (!downloadStream) {
         get().setWarningMessage(`Couldn't fetch the download stream for ${item.md5}`);
         get().onBulkQueueItemFail(i);
-        appendToFailedFile(item.md5);
+        appendToFailedFile(item.md5, "Couldn't fetch download stream");
         updateSession(item.md5, "failed");
         continue;
       }
@@ -365,8 +365,9 @@ export const createBulkDownloadQueueStateSlice = (
           // non-fatal
         }
       } catch (err) {
+        const reason = err instanceof Error ? err.message : "Download failed";
         get().onBulkQueueItemFail(i);
-        appendToFailedFile(item.md5);
+        appendToFailedFile(item.md5, reason);
         updateSession(item.md5, "failed");
       }
     }

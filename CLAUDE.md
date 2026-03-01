@@ -25,11 +25,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run react-dt` - Launch React DevTools for TUI debugging
 
 **CLI Usage:**
-- `libgen-downloader` - Interactive TUI mode
+
+- `libgen-downloader` - Interactive TUI mode (shows session browser if past sessions exist)
 - `libgen-downloader -s "query"` - Direct search with TUI
-- `libgen-downloader -b file.txt` - Bulk download from MD5 list
-- `libgen-downloader -u <MD5>` - Get download URL for MD5  
-- `libgen-downloader -d <MD5>` - Download single file by MD5
+- `libgen-downloader -b file.txt -n <folder>` - Bulk download from MD5 list into named folder
+- `libgen-downloader -u <MD5>` - Get download URL for MD5
+- `libgen-downloader -d <MD5> -n <folder>` - Download single file by MD5 into named folder
 
 ## Architecture
 
@@ -59,13 +60,13 @@ The codebase follows a clean separation between CLI operations and the terminal 
 
 **Key Features:**
 - Interactive TUI with keyboard navigation (vim-style J/K keys supported)
-- Non-blocking downloads with progress indicators
+- Non-blocking downloads with live progress indicators
+- Search filter screen: appears after entering a search phrase; toggle columns, objects, and topics (all on by default) before confirming the search
 - Bulk download functionality with "Add All to Bulk Download Queue" option
-- Session tracking: persists download progress to `~/.libgen-downloader/session.json`; prompts to resume on next launch if there are unfinished items
-- Files saved to `libgen-downloads/` subdirectory (created automatically)
-- Incremental MD5 list files: created before downloads start, updated per item
-- Alternative download source support
-- Result caching (capped at 50 entries to prevent memory growth)
+- Per-search download folders: each search creates `libgen-downloads/<search-phrase>/` with its own session and tracking files
+- Session browser: shown at launch when past sessions exist; lists all sessions with completion status for resumption
+- Session persisted immediately when items are added to the bulk queue (survives early exit)
+- Result caching (capped at 50 entries per filter combination)
 - Dynamic mirror discovery
 
 ## Core Patterns & Architecture
@@ -78,7 +79,9 @@ The codebase follows a clean separation between CLI operations and the terminal 
 
 **Layout System:** `/src/tui/layouts/` uses enum-based layout keys:
 - Search, Result List, Detail, Bulk Download, Download Queue management
-- `RESUME_SESSION_LAYOUT` — shown at startup when a previous session has unfinished items; user can resume or start fresh
+- `SEARCH_FILTERS_LAYOUT` — shown after submitting a search; user toggles columns/objects/topics filters before confirming
+- `SESSION_BROWSER_LAYOUT` — shown at launch when past sessions exist; lists all sessions for resumption
+- `RESUME_SESSION_LAYOUT` — legacy redirect to `SESSION_BROWSER_LAYOUT`
 - Layout switching handled via `LAYOUT_KEY` enum and store actions
 
 **Error Handling:** Retry mechanism with 5 attempts, 2-second delays
@@ -87,17 +90,17 @@ The codebase follows a clean separation between CLI operations and the terminal 
 
 ## Key Data Files
 
-Session and history files are stored in `~/.libgen-downloader/`:
+All output is written under `libgen-downloads/<folder-name>/` in the current working directory. Each search phrase (or `--name` value for CLI modes) gets its own subfolder.
 
-- `session.json` — tracks the current/last bulk download run: search phrase, all items with MD5, title, filename, and status (`in_queue` | `downloaded` | `failed`). Written at run start, updated per item, never deleted.
-- `downloaded.txt` — append-only log of successfully downloaded MD5s; used to skip re-downloads in future runs.
+Per-folder files:
 
-Per-run output files are written to the current working directory:
+- `session.json` — tracks the bulk download session: search phrase, timestamp, and all items with MD5, title, filename, and status (`in_queue` | `downloaded` | `failed`). Created as soon as items are added to the queue; updated per item.
+- `downloaded.txt` — append-only log of successfully downloaded MD5s.
+- `failed.txt` — append-only log of failed MD5s.
 
-- `libgen_downloader_md5_list_<timestamp>.txt` — MD5s of successfully downloaded items (created before download starts, appended to per completion).
-- `libgen_downloader_failed_<timestamp>.txt` — MD5s of failed items (created lazily on first failure).
+Downloaded ebook files are saved alongside these tracking files in the same subfolder.
 
-Downloaded files are saved in the `libgen-downloads/` subdirectory of the current working directory.
+`findAllSessions(baseDir?)` in `src/api/data/session.ts` scans all subfolders of `libgen-downloads/` for `session.json` files and returns them sorted newest-first.
 
 ## Build System & Configuration
 
