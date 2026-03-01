@@ -4,6 +4,7 @@ import { ListItem } from "../../api/models/ListItem";
 import { constructListItems } from "../../utils";
 import { LAYOUT_KEY } from "../layouts/keys";
 import { clearScreen } from "../helpers/screen";
+import { SearchFilters, DEFAULT_SEARCH_FILTERS } from "../../search-filters";
 
 export interface IAppState {
   CLIMode: boolean;
@@ -45,6 +46,9 @@ export interface IAppState {
   setEntries: (entries: Entry[]) => void;
   setActiveLayout: (activeLayout: LAYOUT_KEY) => void;
 
+  searchFilters: SearchFilters;
+  setSearchFilters: (filters: SearchFilters) => void;
+
   resetAppState: () => void;
 }
 
@@ -67,6 +71,7 @@ export const initialAppState = {
   entries: [],
   listItems: [],
   activeLayout: LAYOUT_KEY.SEARCH_LAYOUT,
+  searchFilters: DEFAULT_SEARCH_FILTERS,
 };
 
 export const createAppStateSlice = (
@@ -145,6 +150,8 @@ export const createAppStateSlice = (
 
     set({ activeLayout });
   },
+
+  setSearchFilters: (searchFilters: SearchFilters) => set({ searchFilters }),
 
   resetAppState: () => {
     const timeout = get().warningTimeout;

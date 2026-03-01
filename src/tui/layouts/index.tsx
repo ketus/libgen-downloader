@@ -10,6 +10,7 @@ import { BulkDownloadBeforeExit } from "./bulk-download-before-exit";
 import { DownloadQueueBeforeExit } from "./download-queue-before-exit";
 import { ResumeSession } from "./resume-session";
 import { SessionBrowser } from "./session-browser";
+import { SearchFilters } from "./search-filters";
 
 const Layouts: React.FC = () => {
   return (
@@ -46,6 +47,10 @@ const Layouts: React.FC = () => {
 
       <Layout layoutName={LAYOUT_KEY.SESSION_BROWSER_LAYOUT}>
         <SessionBrowser />
+      </Layout>
+
+      <Layout layoutName={LAYOUT_KEY.SEARCH_FILTERS_LAYOUT}>
+        <SearchFilters />
       </Layout>
     </>
   );

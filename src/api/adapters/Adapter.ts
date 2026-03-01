@@ -1,4 +1,5 @@
 import { Entry } from "../models/Entry";
+import { SearchFilters } from "../../search-filters";
 
 export abstract class Adapter {
   abstract baseURL: string;
@@ -9,7 +10,12 @@ export abstract class Adapter {
     throwError?: (message: string) => void
   ): Entry[] | undefined;
   abstract getPageURL(pathname: string): string;
-  abstract getSearchURL(query: string, pageNumber: number, pageSize: number): string;
+  abstract getSearchURL(
+    query: string,
+    pageNumber: number,
+    pageSize: number,
+    filters?: SearchFilters
+  ): string;
   abstract getDetailPageURL(md5: string): string;
   abstract getMainDownloadURLFromDocument(
     document: Document,

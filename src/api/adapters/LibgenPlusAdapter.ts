@@ -2,6 +2,7 @@ import { Entry } from "../models/Entry";
 import { Adapter } from "./Adapter";
 import { nanoid } from "nanoid";
 import { clearText } from "../../utils";
+import { SearchFilters } from "../../search-filters";
 
 export class LibgenPlusAdapter implements Adapter {
   baseURL: string;
@@ -72,11 +73,17 @@ export class LibgenPlusAdapter implements Adapter {
     return url.toString();
   }
 
-  getSearchURL(query: string, pageNumber: number, pageSize: number): string {
+  getSearchURL(query: string, pageNumber: number, pageSize: number, filters?: SearchFilters): string {
     const url = new URL("/index.php", this.baseURL);
     url.searchParams.set("req", query);
     url.searchParams.set("page", pageNumber.toString());
     url.searchParams.set("res", pageSize.toString());
+    if (filters) {
+      filters.columns.forEach((c) => url.searchParams.append("columns[]", c));
+      filters.objects.forEach((o) => url.searchParams.append("objects[]", o));
+      filters.topics.forEach((t) => url.searchParams.append("topics[]", t));
+      url.searchParams.set("filesuns", "all");
+    }
     return url.toString();
   }
 

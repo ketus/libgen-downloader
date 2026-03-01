@@ -45,7 +45,8 @@ export const createCacheStateSlice = (
     const searchURLAsCacheMapKey = store.mirrorAdapter?.getSearchURL(
       store.searchValue,
       pageNumber,
-      SEARCH_PAGE_SIZE
+      SEARCH_PAGE_SIZE,
+      store.searchFilters
     );
 
     if (!searchURLAsCacheMapKey) {

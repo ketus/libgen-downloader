@@ -7,4 +7,5 @@ export enum LAYOUT_KEY {
   DOWNLOAD_QUEUE_BEFORE_EXIT_LAYOUT = "download_queue_before_exit_layout",
   RESUME_SESSION_LAYOUT = "resume_session_layout",
   SESSION_BROWSER_LAYOUT = "session_browser_layout",
+  SEARCH_FILTERS_LAYOUT = "search_filters_layout",
 }

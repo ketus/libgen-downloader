@@ -9,7 +9,8 @@ import { getDocument } from "../../api/data/document";
 export interface IEventActions {
   backToSearch: () => void;
   search: (query: string, page: number) => Promise<Entry[]>;
-  handleSearchSubmit: () => Promise<void>;
+  handleSearchSubmit: () => void;
+  confirmSearch: () => Promise<void>;
   nextPage: () => Promise<void>;
   prevPage: () => Promise<void>;
   handleExit: () => void;
@@ -28,7 +29,12 @@ export const createEventActionsSlice = (
   search: async (query: string, pageNumber: number) => {
     const store = get();
 
-    const searchURL = get().mirrorAdapter?.getSearchURL(query, pageNumber, SEARCH_PAGE_SIZE);
+    const searchURL = get().mirrorAdapter?.getSearchURL(
+      query,
+      pageNumber,
+      SEARCH_PAGE_SIZE,
+      get().searchFilters
+    );
     if (!searchURL) {
       get().setWarningMessage(`Couldn't construct search URL for "${query}"`);
       return [];
@@ -54,12 +60,17 @@ export const createEventActionsSlice = (
     store.setEntryCacheMap(searchURL, entries);
     return entries;
   },
-  handleSearchSubmit: async () => {
+  handleSearchSubmit: () => {
     const store = get();
 
     if (store.searchValue.length < 3) {
       return;
     }
+
+    store.setActiveLayout(LAYOUT_KEY.SEARCH_FILTERS_LAYOUT);
+  },
+  confirmSearch: async () => {
+    const store = get();
 
     store.setActiveLayout(LAYOUT_KEY.RESULT_LIST_LAYOUT);
     store.setIsLoading(true);
