@@ -4,6 +4,7 @@ import renderTUI from "../tui/index";
 import { LAYOUT_KEY } from "../tui/layouts/keys";
 import { useBoundStore } from "../tui/store/index";
 import { attempt } from "../utils";
+import { loadSession } from "../api/data/session";
 
 export const operate = async (flags: Record<string, unknown>) => {
   if (flags.search) {
@@ -82,6 +83,21 @@ export const operate = async (flags: Record<string, unknown>) => {
       initialLayout: LAYOUT_KEY.BULK_DOWNLOAD_LAYOUT,
     });
     store.startBulkDownloadInCLI(md5List);
+    return;
+  }
+
+  // Plain TUI mode — check for an incomplete previous session and offer to resume
+  const session = loadSession();
+  const hasIncomplete = session && session.items.some((i) => i.status !== "downloaded");
+
+  if (hasIncomplete) {
+    const store = useBoundStore.getState();
+    await store.fetchConfig();
+    renderTUI({
+      startInCLIMode: false,
+      doNotFetchConfigInitially: true,
+      initialLayout: LAYOUT_KEY.RESUME_SESSION_LAYOUT,
+    });
     return;
   }
 

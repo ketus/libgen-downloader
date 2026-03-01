@@ -20,12 +20,15 @@ export const createCacheStateSlice = (
   ...initialCacheState,
 
   setEntryCacheMap: (searchURL: string, entryList: Entry[]) => {
+    const MAX_CACHE_ENTRIES = 50;
     const store = get();
 
-    const entryCacheMap = {
-      ...store.entryCacheMap,
-      [searchURL]: entryList,
-    };
+    const entryCacheMap = { ...store.entryCacheMap, [searchURL]: entryList };
+
+    const keys = Object.keys(entryCacheMap);
+    if (keys.length > MAX_CACHE_ENTRIES) {
+      delete entryCacheMap[keys[0]];
+    }
 
     set({ entryCacheMap });
   },

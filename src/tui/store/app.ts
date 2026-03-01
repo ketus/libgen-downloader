@@ -117,6 +117,9 @@ export const createAppStateSlice = (
       handleSearchOption: store.backToSearch,
       handleNextPageOption: store.nextPage,
       handlePrevPageOption: store.prevPage,
+      handleAddAllToBulkDownloadQueueOption: () => {
+        get().entries.forEach((entry) => get().addToBulkDownloadQueue(entry));
+      },
       handleStartBulkDownloadOption: store.startBulkDownload,
       handleExitOption: () => {
         if (get().inDownloadQueueEntryIds.length > 0) {
@@ -143,5 +146,11 @@ export const createAppStateSlice = (
     set({ activeLayout });
   },
 
-  resetAppState: () => set(initialAppState),
+  resetAppState: () => {
+    const timeout = get().warningTimeout;
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    set(initialAppState);
+  },
 });

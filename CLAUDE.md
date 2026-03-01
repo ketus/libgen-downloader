@@ -10,15 +10,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Development:**
 - `npm start` - Run in development mode with ts-node
-- `npm run build` - Build TypeScript to JavaScript  
+- `npm run build` - Build TypeScript to JavaScript
 - `npm run watch` - Build and watch for changes
 - `npm run lint` - Lint TypeScript/JavaScript files with ESLint + Prettier
 - `npm run lint:fix` - Auto-fix linting issues
 - `npm run format` - Format code with Prettier (100-char line width)
 
 **Production:**
-- `npm run build:complete` - Full build including standalone executables
-- `npm run pkg` - Create standalone executables for multiple platforms (Node.js 16)
+- `bun build --compile` - Create standalone executable (replaces legacy `pkg`)
 - `npm run rimraf` - Clean build and standalone-executables directories
 
 **Testing/Debug:**
@@ -61,9 +60,12 @@ The codebase follows a clean separation between CLI operations and the terminal 
 **Key Features:**
 - Interactive TUI with keyboard navigation (vim-style J/K keys supported)
 - Non-blocking downloads with progress indicators
-- Bulk download functionality
+- Bulk download functionality with "Add All to Bulk Download Queue" option
+- Session tracking: persists download progress to `~/.libgen-downloader/session.json`; prompts to resume on next launch if there are unfinished items
+- Files saved to `libgen-downloads/` subdirectory (created automatically)
+- Incremental MD5 list files: created before downloads start, updated per item
 - Alternative download source support
-- Result caching mechanism
+- Result caching (capped at 50 entries to prevent memory growth)
 - Dynamic mirror discovery
 
 ## Core Patterns & Architecture
@@ -76,19 +78,33 @@ The codebase follows a clean separation between CLI operations and the terminal 
 
 **Layout System:** `/src/tui/layouts/` uses enum-based layout keys:
 - Search, Result List, Detail, Bulk Download, Download Queue management
+- `RESUME_SESSION_LAYOUT` — shown at startup when a previous session has unfinished items; user can resume or start fresh
 - Layout switching handled via `LAYOUT_KEY` enum and store actions
 
 **Error Handling:** Retry mechanism with 5 attempts, 2-second delays
 - Graceful mirror failover for availability issues
 - User-friendly error messages with retry options
 
+## Key Data Files
+
+Session and history files are stored in `~/.libgen-downloader/`:
+
+- `session.json` — tracks the current/last bulk download run: search phrase, all items with MD5, title, filename, and status (`in_queue` | `downloaded` | `failed`). Written at run start, updated per item, never deleted.
+- `downloaded.txt` — append-only log of successfully downloaded MD5s; used to skip re-downloads in future runs.
+
+Per-run output files are written to the current working directory:
+
+- `libgen_downloader_md5_list_<timestamp>.txt` — MD5s of successfully downloaded items (created before download starts, appended to per completion).
+- `libgen_downloader_failed_<timestamp>.txt` — MD5s of failed items (created lazily on first failure).
+
+Downloaded files are saved in the `libgen-downloads/` subdirectory of the current working directory.
+
 ## Build System & Configuration
 
 **TypeScript:** ES2016 target, CommonJS modules, strict type checking
-**ESLint:** React + TypeScript rules with Prettier integration  
+**ESLint:** React + TypeScript rules with Prettier integration
 **Prettier:** 100-char line width, double quotes, trailing commas
-**pkg:** Creates standalone executables for multiple platforms (Node.js 16)
-- Targets: Windows x64, macOS (ARM64/x64), Linux (ARM64/x64)
+**Bun:** Used for building standalone executables (`bun build --compile`); replaces the legacy `pkg` tool
 
 ## Current Development Context
 

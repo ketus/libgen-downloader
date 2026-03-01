@@ -63,6 +63,7 @@ interface constructInitialListItemsArgs {
   handleSearchOption: () => void;
   handleNextPageOption: () => void;
   handlePrevPageOption: () => void;
+  handleAddAllToBulkDownloadQueueOption: () => void;
   handleStartBulkDownloadOption: () => void;
   handleExitOption: () => void;
 }
@@ -74,6 +75,7 @@ export const constructListItems = ({
   handleSearchOption,
   handleNextPageOption,
   handlePrevPageOption,
+  handleAddAllToBulkDownloadQueueOption,
   handleStartBulkDownloadOption,
   handleExitOption,
 }: constructInitialListItemsArgs) => {
@@ -98,6 +100,12 @@ export const constructListItems = ({
     ...(currentPage > 1
       ? [createOptionItem(Option.PREV_PAGE, Label.PREV_PAGE, handlePrevPageOption)]
       : []),
+
+    createOptionItem(
+      Option.ADD_ALL_TO_BULK_DOWNLOAD_QUEUE,
+      Label.ADD_ALL_TO_BULK_DOWNLOAD_QUEUE,
+      handleAddAllToBulkDownloadQueueOption
+    ),
 
     createOptionItem(
       Option.START_BULK_DOWNLOAD,

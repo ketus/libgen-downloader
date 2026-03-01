@@ -8,6 +8,7 @@ import Detail from "./detail/index";
 import { BulkDownload } from "./bulk-download";
 import { BulkDownloadBeforeExit } from "./bulk-download-before-exit";
 import { DownloadQueueBeforeExit } from "./download-queue-before-exit";
+import { ResumeSession } from "./resume-session";
 
 const Layouts: React.FC = () => {
   return (
@@ -36,6 +37,10 @@ const Layouts: React.FC = () => {
 
       <Layout layoutName={LAYOUT_KEY.DOWNLOAD_QUEUE_BEFORE_EXIT_LAYOUT}>
         <DownloadQueueBeforeExit />
+      </Layout>
+
+      <Layout layoutName={LAYOUT_KEY.RESUME_SESSION_LAYOUT}>
+        <ResumeSession />
       </Layout>
     </>
   );

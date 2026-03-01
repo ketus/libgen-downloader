@@ -8,6 +8,7 @@ export enum Option {
   ALTERNATIVE_DOWNLOADS = "alternative_downloads",
   DOWNLOAD_DIRECTLY = "download_directly_option",
   ADD_TO_BULK_DOWNLOAD_QUEUE = "add_to_bulk_download_queue_option",
+  ADD_ALL_TO_BULK_DOWNLOAD_QUEUE = "add_all_to_bulk_download_queue_option",
   REMOVE_FROM_BULK_DOWNLOAD_QUEUE = "remove_from_bulk_download_queue_option",
   TURN_BACK_TO_THE_LIST = "turn_back_to_the_list_option",
   BACK_TO_ENTRY_OPTIONS = "back_to_entry_options",

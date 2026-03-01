@@ -96,8 +96,12 @@ export const createDownloadQueueStateSlice = (
 
   removeEntryIdFromDownloadQueue: (entryId: string) => {
     const store = get();
-    set({
-      inDownloadQueueEntryIds: store.inDownloadQueueEntryIds.filter((id) => id !== entryId),
+    set((prev) => {
+      const { [entryId]: _, ...rest } = prev.downloadProgressMap;
+      return {
+        inDownloadQueueEntryIds: store.inDownloadQueueEntryIds.filter((id) => id !== entryId),
+        downloadProgressMap: rest,
+      };
     });
   },
 

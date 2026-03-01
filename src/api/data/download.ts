@@ -26,7 +26,9 @@ export const downloadFile = async ({
     Math.max(fullFileName.length - MAX_FILE_NAME_LENGTH, 0),
     fullFileName.length
   );
-  const path = `./${slicedFileName}`;
+  const DOWNLOAD_DIR = "libgen-downloads";
+  fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+  const path = `${DOWNLOAD_DIR}/${slicedFileName}`;
 
   const total = Number(downloadStream.headers.get("content-length") || 0);
   const filename = parsedContentDisposition.parameters.filename;
@@ -66,6 +68,7 @@ export const downloadFile = async ({
     return downloadResult;
   } catch (error) {
     file.destroy();
+    reader.cancel();
     throw new Error(`(${filename}) Error occurred while downloading file`);
   }
 };

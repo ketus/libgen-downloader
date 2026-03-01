@@ -11,8 +11,12 @@ export function BulkDownload() {
   const completedBulkDownloadItemCount = useBoundStore(
     (state) => state.completedBulkDownloadItemCount
   );
+  const skippedBulkDownloadItemCount = useBoundStore(
+    (state) => state.skippedBulkDownloadItemCount
+  );
   const failedBulkDownloadItemCount = useBoundStore((state) => state.failedBulkDownloadItemCount);
   const createdMD5ListFileName = useBoundStore((state) => state.createdMD5ListFileName);
+  const failedMD5ListFileName = useBoundStore((state) => state.failedMD5ListFileName);
   const CLIMode = useBoundStore((state) => state.CLIMode);
   const totalItemCount = bulkDownloadQueue.length;
 
@@ -21,6 +25,7 @@ export function BulkDownload() {
       <Box paddingLeft={3} flexDirection="column">
         <Text wrap="truncate-end">
           <Text color="greenBright">COMPLETED ({completedBulkDownloadItemCount}) </Text>
+          <Text color="cyan">SKIPPED ({skippedBulkDownloadItemCount}) </Text>
           <Text color="redBright">FAILED ({failedBulkDownloadItemCount}) </Text>
           <Text color="white">TOTAL ({totalItemCount})</Text>
         </Text>
@@ -34,6 +39,14 @@ export function BulkDownload() {
             <InkSpinner type="simpleDotsScrolling" />
           )}
         </Text>
+
+        {failedMD5ListFileName ? (
+          <Text color="gray">
+            Failed MD5 list:{" "}
+            <Text color="redBright">{failedMD5ListFileName}</Text>
+            <Text color="gray"> (retry with: libgen-downloader -b {failedMD5ListFileName})</Text>
+          </Text>
+        ) : null}
 
         <Text color="white">
           Downloading files to <Text color="blueBright">{process.cwd()}</Text>

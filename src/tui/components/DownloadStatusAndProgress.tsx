@@ -14,10 +14,12 @@ export function DownloadStatusAndProgress({ downloadProgressData }: Props) {
     downloadProgressData.total
   );
 
+  const noProgressStatuses = [DownloadStatus.DOWNLOADED, DownloadStatus.ALREADY_DOWNLOADED, DownloadStatus.FAILED];
+
   return (
     <Text>
       {downloadStatusIndicators[downloadProgressData.status]}{" "}
-      {downloadProgressData.status !== DownloadStatus.DOWNLOADED && (
+      {!noProgressStatuses.includes(downloadProgressData.status) && (
         <>
           <Text color="white">
             {downloadProgress?.progressPercentage}% {downloadProgress?.downloadedSize} /{" "}
