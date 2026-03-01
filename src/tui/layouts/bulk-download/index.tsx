@@ -1,9 +1,9 @@
 import React from "react";
 import { Box, Text } from "ink";
-import InkSpinner from "ink-spinner";
 import { useBoundStore } from "../../store";
 import { DownloadStatusAndProgress } from "../../components/DownloadStatusAndProgress";
 import { BulkDownloadAfterCompleteOptions } from "./BulkDownloadAfterCompleteOptions";
+import path from "path";
 
 export function BulkDownload() {
   const bulkDownloadQueue = useBoundStore((state) => state.bulkDownloadQueue);
@@ -15,10 +15,11 @@ export function BulkDownload() {
     (state) => state.skippedBulkDownloadItemCount
   );
   const failedBulkDownloadItemCount = useBoundStore((state) => state.failedBulkDownloadItemCount);
-  const createdMD5ListFileName = useBoundStore((state) => state.createdMD5ListFileName);
-  const failedMD5ListFileName = useBoundStore((state) => state.failedMD5ListFileName);
+  const downloadDir = useBoundStore((state) => state.downloadDir);
   const CLIMode = useBoundStore((state) => state.CLIMode);
   const totalItemCount = bulkDownloadQueue.length;
+
+  const failedFilePath = downloadDir ? path.join(downloadDir, "failed.txt") : "";
 
   return (
     <Box flexDirection="column">
@@ -30,27 +31,19 @@ export function BulkDownload() {
           <Text color="white">TOTAL ({totalItemCount})</Text>
         </Text>
 
-        <Text color="gray">
-          {createdMD5ListFileName ? (
-            <Text>
-              MD5 list file created: <Text color="blueBright">{createdMD5ListFileName}</Text>
-            </Text>
-          ) : (
-            <InkSpinner type="simpleDotsScrolling" />
-          )}
-        </Text>
-
-        {failedMD5ListFileName ? (
+        {downloadDir ? (
           <Text color="gray">
-            Failed MD5 list:{" "}
-            <Text color="redBright">{failedMD5ListFileName}</Text>
-            <Text color="gray"> (retry with: libgen-downloader -b {failedMD5ListFileName})</Text>
+            Saving to: <Text color="blueBright">{downloadDir}</Text>
           </Text>
         ) : null}
 
-        <Text color="white">
-          Downloading files to <Text color="blueBright">{process.cwd()}</Text>
-        </Text>
+        {failedBulkDownloadItemCount > 0 && failedFilePath ? (
+          <Text color="gray">
+            Failed MD5 list:{" "}
+            <Text color="redBright">{failedFilePath}</Text>
+            <Text color="gray"> (retry with: libgen-downloader -b {failedFilePath} --name "...")</Text>
+          </Text>
+        ) : null}
 
         {bulkDownloadQueue.map((item, idx) => (
           <Text key={idx} wrap="truncate-end">

@@ -9,6 +9,7 @@ import { BulkDownload } from "./bulk-download";
 import { BulkDownloadBeforeExit } from "./bulk-download-before-exit";
 import { DownloadQueueBeforeExit } from "./download-queue-before-exit";
 import { ResumeSession } from "./resume-session";
+import { SessionBrowser } from "./session-browser";
 
 const Layouts: React.FC = () => {
   return (
@@ -41,6 +42,10 @@ const Layouts: React.FC = () => {
 
       <Layout layoutName={LAYOUT_KEY.RESUME_SESSION_LAYOUT}>
         <ResumeSession />
+      </Layout>
+
+      <Layout layoutName={LAYOUT_KEY.SESSION_BROWSER_LAYOUT}>
+        <SessionBrowser />
       </Layout>
     </>
   );

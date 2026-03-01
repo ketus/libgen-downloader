@@ -1,11 +1,20 @@
 import fs from "fs";
+import path from "path";
 
-export function initMD5ListFile(): string {
-  const filename = `libgen_downloader_md5_list_${Date.now()}.txt`;
-  fs.writeFileSync(filename, "");
-  return filename;
+export function initDownloadedFile(downloadDir: string): string {
+  const filepath = path.join(downloadDir, "downloaded.txt");
+  fs.mkdirSync(downloadDir, { recursive: true });
+  if (!fs.existsSync(filepath)) fs.writeFileSync(filepath, "");
+  return filepath;
 }
 
-export function appendMD5ToFile(filename: string, md5: string): void {
-  fs.appendFileSync(filename, md5 + "\n");
+export function initFailedFile(downloadDir: string): string {
+  const filepath = path.join(downloadDir, "failed.txt");
+  fs.mkdirSync(downloadDir, { recursive: true });
+  if (!fs.existsSync(filepath)) fs.writeFileSync(filepath, "");
+  return filepath;
+}
+
+export function appendMD5ToFile(filepath: string, md5: string): void {
+  fs.appendFileSync(filepath, md5 + "\n");
 }

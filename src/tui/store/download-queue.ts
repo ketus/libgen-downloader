@@ -1,7 +1,9 @@
+import path from "path";
 import { TCombinedStore } from "./index";
 import { Entry } from "../../api/models/Entry";
 import { DownloadStatus } from "../../download-statuses";
 import { attempt } from "../../utils";
+import { sanitizeFolderName } from "../../utils";
 import { getDocument } from "../../api/data/document";
 import { downloadFile } from "../../api/data/download";
 
@@ -154,8 +156,14 @@ export const createDownloadQueueStateSlice = (
           status: DownloadStatus.DOWNLOADING,
         });
 
+        const downloadDir = path.join(
+          "libgen-downloads",
+          sanitizeFolderName(get().searchValue || "downloads")
+        );
+
         await downloadFile({
           downloadStream,
+          downloadDir,
           onStart: (filename, total) => {
             store.updateCurrentDownloadProgress(entry.id, {
               filename,

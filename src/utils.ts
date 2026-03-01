@@ -142,6 +142,16 @@ export const getRenderedListItems = (
   return renderedItems;
 };
 
+export function sanitizeFolderName(phrase: string): string {
+  return (
+    phrase
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 60) || "downloads"
+  );
+}
+
 export function clearText(text: string): string {
   return text
     .split("\n")[0]

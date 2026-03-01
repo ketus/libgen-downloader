@@ -4,12 +4,14 @@ import { DownloadResult } from "../models/DownloadResult";
 
 interface downloadFileArgs {
   downloadStream: Response;
+  downloadDir: string;
   onStart: (filename: string, total: number) => void;
   onData: (filename: string, chunk: Buffer, total: number) => void;
 }
 
 export const downloadFile = async ({
   downloadStream,
+  downloadDir,
   onStart,
   onData,
 }: downloadFileArgs): Promise<DownloadResult> => {
@@ -26,9 +28,8 @@ export const downloadFile = async ({
     Math.max(fullFileName.length - MAX_FILE_NAME_LENGTH, 0),
     fullFileName.length
   );
-  const DOWNLOAD_DIR = "libgen-downloads";
-  fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
-  const path = `${DOWNLOAD_DIR}/${slicedFileName}`;
+  fs.mkdirSync(downloadDir, { recursive: true });
+  const path = `${downloadDir}/${slicedFileName}`;
 
   const total = Number(downloadStream.headers.get("content-length") || 0);
   const filename = parsedContentDisposition.parameters.filename;

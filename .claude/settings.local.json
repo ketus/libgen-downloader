@@ -44,7 +44,8 @@
       "Bash(gh run view:*)",
       "Bash(chmod:*)",
       "Bash(./build/index.js:*)",
-      "Bash(wc -l /e/DEV/Projects/libgen-downloader/src/tui/store/*.ts /e/DEV/Projects/libgen-downloader/src/api/data/*.ts)"
+      "Bash(wc -l /e/DEV/Projects/libgen-downloader/src/tui/store/*.ts /e/DEV/Projects/libgen-downloader/src/api/data/*.ts)",
+      "Bash(npx tsc --noEmit)"
     ],
     "deny": []
   }

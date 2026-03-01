@@ -4,7 +4,7 @@ import renderTUI from "../tui/index";
 import { LAYOUT_KEY } from "../tui/layouts/keys";
 import { useBoundStore } from "../tui/store/index";
 import { attempt } from "../utils";
-import { loadSession } from "../api/data/session";
+import { findAllSessions } from "../api/data/session";
 
 export const operate = async (flags: Record<string, unknown>) => {
   if (flags.search) {
@@ -26,6 +26,11 @@ export const operate = async (flags: Record<string, unknown>) => {
   }
 
   if (flags.bulk) {
+    const folderName = flags.name as string | undefined;
+    if (!folderName) {
+      console.log("--name <label> is required when using -b. Example: -b list.txt --name \"machine learning\"");
+      return;
+    }
     const filePath = flags.bulk as string;
     const data = await fs.promises.readFile(filePath, "utf8");
     const md5List = data.split("\n").filter((line) => line.trim());
@@ -36,7 +41,7 @@ export const operate = async (flags: Record<string, unknown>) => {
       doNotFetchConfigInitially: true,
       initialLayout: LAYOUT_KEY.BULK_DOWNLOAD_LAYOUT,
     });
-    store.startBulkDownloadInCLI(md5List);
+    store.startBulkDownloadInCLI(md5List, folderName);
     return;
   }
 
@@ -73,8 +78,12 @@ export const operate = async (flags: Record<string, unknown>) => {
   }
 
   if (flags.download) {
+    const folderName = flags.name as string | undefined;
+    if (!folderName) {
+      console.log("--name <label> is required when using -d. Example: -d <MD5> --name \"my books\"");
+      return;
+    }
     const md5 = flags.download as string;
-    const md5List = [md5];
     const store = useBoundStore.getState();
     await store.fetchConfig();
     renderTUI({
@@ -82,21 +91,20 @@ export const operate = async (flags: Record<string, unknown>) => {
       doNotFetchConfigInitially: true,
       initialLayout: LAYOUT_KEY.BULK_DOWNLOAD_LAYOUT,
     });
-    store.startBulkDownloadInCLI(md5List);
+    store.startBulkDownloadInCLI([md5], folderName);
     return;
   }
 
-  // Plain TUI mode — check for an incomplete previous session and offer to resume
-  const session = loadSession();
-  const hasIncomplete = session && session.items.some((i) => i.status !== "downloaded");
+  // Plain TUI mode — show session browser if any sessions exist, otherwise go to search
+  const sessions = findAllSessions();
 
-  if (hasIncomplete) {
+  if (sessions.length > 0) {
     const store = useBoundStore.getState();
     await store.fetchConfig();
     renderTUI({
       startInCLIMode: false,
       doNotFetchConfigInitially: true,
-      initialLayout: LAYOUT_KEY.RESUME_SESSION_LAYOUT,
+      initialLayout: LAYOUT_KEY.SESSION_BROWSER_LAYOUT,
     });
     return;
   }

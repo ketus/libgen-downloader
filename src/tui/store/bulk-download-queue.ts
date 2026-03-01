@@ -1,15 +1,20 @@
+import path from "path";
+import fs from "fs";
 import { TCombinedStore } from "./index";
 import { Entry } from "../../api/models/Entry";
 import { DownloadStatus } from "../../download-statuses";
 import { attempt } from "../../utils";
+import { sanitizeFolderName } from "../../utils";
 import { LAYOUT_KEY } from "../layouts/keys";
 import { IDownloadProgress } from "./download-queue";
 import { getDocument } from "../../api/data/document";
 import { downloadFile } from "../../api/data/download";
-import { initMD5ListFile, appendMD5ToFile } from "../../api/data/file";
+import { initDownloadedFile, initFailedFile, appendMD5ToFile } from "../../api/data/file";
 import { loadDownloadedMD5s, recordDownloaded } from "../../api/data/downloadHistory";
 import { saveSession, loadSession, Session, SessionItem } from "../../api/data/session";
 import objectHash from "object-hash";
+
+const BASE_DOWNLOAD_DIR = "libgen-downloads";
 
 export interface IBulkDownloadQueueItem extends IDownloadProgress {
   md5: string;
@@ -22,8 +27,7 @@ export interface IBulkDownloadQueueState {
   skippedBulkDownloadItemCount: number;
   failedBulkDownloadItemCount: number;
 
-  createdMD5ListFileName: string;
-  failedMD5ListFileName: string;
+  downloadDir: string;
 
   bulkDownloadSelectedEntries: Record<string, Entry>;
   bulkDownloadQueue: IBulkDownloadQueueItem[];
@@ -38,8 +42,8 @@ export interface IBulkDownloadQueueState {
   onBulkQueueItemSkip: (index: number) => void;
   operateBulkDownloadQueue: () => Promise<void>;
   startBulkDownload: () => Promise<void>;
-  startBulkDownloadInCLI: (md5List: string[]) => Promise<void>;
-  resumeFromSession: (session: Session) => void;
+  startBulkDownloadInCLI: (md5List: string[], folderName: string) => Promise<void>;
+  resumeFromSession: (session: Session, downloadDir: string) => void;
   resetBulkDownloadQueue: () => void;
 }
 
@@ -50,8 +54,7 @@ export const initialBulkDownloadQueueState = {
   skippedBulkDownloadItemCount: 0,
   failedBulkDownloadItemCount: 0,
 
-  createdMD5ListFileName: "",
-  failedMD5ListFileName: "",
+  downloadDir: "",
 
   bulkDownloadSelectedEntries: {},
   bulkDownloadQueue: [],
@@ -60,7 +63,48 @@ export const initialBulkDownloadQueueState = {
 export const createBulkDownloadQueueStateSlice = (
   set: (partial: Partial<TCombinedStore> | ((state: TCombinedStore) => Partial<TCombinedStore>)) => void,
   get: () => TCombinedStore
-) => ({
+) => {
+  // Persists the current bulk selection to a session file immediately, so the
+  // folder and session are visible even if the user exits before starting the download.
+  const persistQueueToSession = () => {
+    const searchValue = get().searchValue;
+    if (!searchValue) return;
+
+    const entries = Object.values(get().bulkDownloadSelectedEntries);
+    const mirrorAdapter = get().mirrorAdapter;
+
+    if (entries.length === 0 || !mirrorAdapter) return;
+
+    const downloadDir = path.join(BASE_DOWNLOAD_DIR, sanitizeFolderName(searchValue));
+
+    const sessionItems: SessionItem[] = [];
+    for (const entry of entries) {
+      try {
+        const pageURL = mirrorAdapter.getPageURL(entry.mirror);
+        if (!pageURL) continue;
+        const md5 = new URL(pageURL).searchParams.get("md5");
+        if (md5) sessionItems.push({ md5, title: entry.title, filename: "", status: "in_queue" });
+      } catch {
+        continue;
+      }
+    }
+
+    if (sessionItems.length === 0) return;
+
+    try {
+      initDownloadedFile(downloadDir);
+      initFailedFile(downloadDir);
+    } catch {
+      // non-fatal
+    }
+
+    saveSession(
+      { timestamp: new Date().toISOString(), searchPhrase: searchValue, items: sessionItems },
+      downloadDir
+    );
+  };
+
+  return {
   ...initialBulkDownloadQueueState,
 
   addToBulkDownloadQueue: (entry: Entry) => {
@@ -77,6 +121,8 @@ export const createBulkDownloadQueueStateSlice = (
     set({
       bulkDownloadSelectedEntries: newEntryMap,
     });
+
+    persistQueueToSession();
   },
 
   removeFromBulkDownloadQueue: (entry: Entry) => {
@@ -101,6 +147,8 @@ export const createBulkDownloadQueueStateSlice = (
     set({
       bulkDownloadSelectedEntries: newEntryMap,
     });
+
+    persistQueueToSession();
   },
 
   onBulkQueueItemProcessing: (index: number) => {
@@ -218,9 +266,13 @@ export const createBulkDownloadQueueStateSlice = (
 
   operateBulkDownloadQueue: async () => {
     const bulkDownloadQueue = get().bulkDownloadQueue;
+    const downloadDir = get().downloadDir;
+
+    const downloadedFilePath = path.join(downloadDir, "downloaded.txt");
+    const failedFilePath = path.join(downloadDir, "failed.txt");
 
     // Load session so we can update it incrementally during the run
-    const session = loadSession();
+    const session = loadSession(downloadDir);
 
     // Load history of already-downloaded MD5s once before the loop
     const downloadedMD5s = loadDownloadedMD5s();
@@ -232,20 +284,13 @@ export const createBulkDownloadQueueStateSlice = (
       if (item) {
         item.status = status;
         if (filename !== undefined) item.filename = filename;
-        saveSession(session);
+        saveSession(session, downloadDir);
       }
     };
 
-    // Lazily create the failed file on first failure so it only exists when needed
     const appendToFailedFile = (md5: string) => {
       try {
-        let failedFilename = get().failedMD5ListFileName;
-        if (!failedFilename) {
-          failedFilename = `libgen_downloader_failed_${Date.now()}.txt`;
-          appendMD5ToFile(failedFilename, ""); // creates the file
-          set({ failedMD5ListFileName: failedFilename });
-        }
-        appendMD5ToFile(failedFilename, md5);
+        appendMD5ToFile(failedFilePath, md5);
       } catch {
         // non-fatal
       }
@@ -302,6 +347,7 @@ export const createBulkDownloadQueueStateSlice = (
       try {
         await downloadFile({
           downloadStream,
+          downloadDir,
           onStart: (filename, total) => {
             downloadedFilename = filename;
             get().onBulkQueueItemStart(i, filename, total);
@@ -314,7 +360,7 @@ export const createBulkDownloadQueueStateSlice = (
         get().onBulkQueueItemComplete(i);
         updateSession(item.md5, "downloaded", downloadedFilename);
         try {
-          appendMD5ToFile(get().createdMD5ListFileName, item.md5);
+          appendMD5ToFile(downloadedFilePath, item.md5);
         } catch {
           // non-fatal
         }
@@ -335,12 +381,16 @@ export const createBulkDownloadQueueStateSlice = (
       return;
     }
 
+    const downloadDir = path.join(BASE_DOWNLOAD_DIR, sanitizeFolderName(get().searchValue));
+    fs.mkdirSync(downloadDir, { recursive: true });
+    initDownloadedFile(downloadDir);
+    initFailedFile(downloadDir);
+
     set({
       completedBulkDownloadItemCount: 0,
       skippedBulkDownloadItemCount: 0,
       failedBulkDownloadItemCount: 0,
-      createdMD5ListFileName: initMD5ListFile(),
-      failedMD5ListFileName: "",
+      downloadDir,
       isBulkDownloadComplete: false,
     });
     get().setActiveLayout(LAYOUT_KEY.BULK_DOWNLOAD_LAYOUT);
@@ -374,27 +424,37 @@ export const createBulkDownloadQueueStateSlice = (
       sessionItems.push({ md5, title: entry.title, filename: "", status: "in_queue" });
     }
 
-    saveSession({
-      timestamp: new Date().toISOString(),
-      searchPhrase: get().searchValue,
-      items: sessionItems,
-    });
+    saveSession(
+      {
+        timestamp: new Date().toISOString(),
+        searchPhrase: get().searchValue,
+        items: sessionItems,
+      },
+      downloadDir
+    );
 
     set({ bulkDownloadQueue });
 
     get().operateBulkDownloadQueue();
   },
 
-  startBulkDownloadInCLI: async (md5List: string[]) => {
-    saveSession({
-      timestamp: new Date().toISOString(),
-      searchPhrase: "",
-      items: md5List.map((md5) => ({ md5, title: "", filename: "", status: "in_queue" })),
-    });
+  startBulkDownloadInCLI: async (md5List: string[], folderName: string) => {
+    const downloadDir = path.join(BASE_DOWNLOAD_DIR, sanitizeFolderName(folderName));
+    fs.mkdirSync(downloadDir, { recursive: true });
+    initDownloadedFile(downloadDir);
+    initFailedFile(downloadDir);
+
+    saveSession(
+      {
+        timestamp: new Date().toISOString(),
+        searchPhrase: folderName,
+        items: md5List.map((md5) => ({ md5, title: "", filename: "", status: "in_queue" })),
+      },
+      downloadDir
+    );
 
     set({
-      createdMD5ListFileName: initMD5ListFile(),
-      failedMD5ListFileName: "",
+      downloadDir,
       bulkDownloadQueue: md5List.map((md5) => ({
         md5,
         status: DownloadStatus.IN_QUEUE,
@@ -410,25 +470,35 @@ export const createBulkDownloadQueueStateSlice = (
     get().handleExit();
   },
 
-  resumeFromSession: (session: Session) => {
+  resumeFromSession: (session: Session, downloadDir: string) => {
+    // Ensure tracking files exist
+    try {
+      initDownloadedFile(downloadDir);
+      initFailedFile(downloadDir);
+    } catch {
+      // non-fatal
+    }
+
     // Preserve titles from previous session; reset all statuses to in_queue
-    saveSession({
-      timestamp: new Date().toISOString(),
-      searchPhrase: session.searchPhrase,
-      items: session.items.map((item) => ({
-        md5: item.md5,
-        title: item.title,
-        filename: "",
-        status: "in_queue",
-      })),
-    });
+    saveSession(
+      {
+        timestamp: new Date().toISOString(),
+        searchPhrase: session.searchPhrase,
+        items: session.items.map((item) => ({
+          md5: item.md5,
+          title: item.title,
+          filename: "",
+          status: "in_queue",
+        })),
+      },
+      downloadDir
+    );
 
     set({
       completedBulkDownloadItemCount: 0,
       skippedBulkDownloadItemCount: 0,
       failedBulkDownloadItemCount: 0,
-      createdMD5ListFileName: initMD5ListFile(),
-      failedMD5ListFileName: "",
+      downloadDir,
       isBulkDownloadComplete: false,
       bulkDownloadQueue: session.items.map((item) => ({
         md5: item.md5,
@@ -448,4 +518,5 @@ export const createBulkDownloadQueueStateSlice = (
       ...initialBulkDownloadQueueState,
     });
   },
-});
+  };
+};
